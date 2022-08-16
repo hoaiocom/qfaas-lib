@@ -26,14 +26,14 @@ class Utils:
     def __init__(self):
         pass
 
-    def generate_response(job: JobResponse) -> dict:
-        if job:
+    def generate_response(jobResponse: JobResponse) -> dict:
+        if jobResponse:
             statusCode = 201  # not yet finished
-            if job.jobStatus.status == "DONE":
+            if jobResponse.jobStatus.status == "DONE":
                 statusCode = 200
-            job.jobStatus = vars(job.jobStatus)
-            job = vars(job)  # Object to directory
-            response = {"statusCode": statusCode, "body": job}
+            jobResponse.jobStatus = vars(jobResponse.jobStatus)
+            jobResponse = vars(jobResponse)  # Object to directory
+            response = {"statusCode": statusCode, "body": jobResponse}
         else:
             response = {
                 "statusCode": 500,
@@ -41,34 +41,44 @@ class Utils:
             }
         return response
 
-    def generate_post_processed_response(jobResult) -> dict:
-        statusCode = 200
-        jobStatus = JobStatus("DONE", "Job post processing completed")
-        response = {
-            "statusCode": statusCode,
-            "body": {"jobResult": jobResult, "jobStatus": vars(jobStatus)},
-        }
-        return response
-
     def generate_dict_output(data, details) -> dict:
         output = {"data": data, "details": details}
         return output
 
-    def counts_post_process(job: JobResponse) -> dict:
-        try:
-            jobResult = job.jobResult
-            if jobResult:
-                result = max(jobResult, key=jobResult.get)
-                occurrence = max(jobResult.values())
-                allPossibleValues = {
-                    k: int(k, 2) for k, v in jobResult.items() if v == occurrence
-                }
-                details = {
-                    "decimalValue": int(result, 2),
-                    "numberOfOccurence": occurrence,
-                    "allPossibleValues": allPossibleValues,
-                }
-                job.jobResult = {"data": result, "details": details}
-        except:
+    def qrng_counts_post_process(job) -> JobResponse:
+        # If input type = JobResponse or have jobRawResult
+        jobRawResult = {}
+        if type(job) is JobResponse:
+            if job.jobResult:
+                jobRawResult = job.jobResult
+        elif hasattr(job, 'jobRawResult'): # Type is FunctionInvocationSchema (post-process only)
+            jobRawResult = job.jobRawResult
             job = JobResponse()
+        else:
+            job = JobResponse()
+            return job
+        
+        if jobRawResult:
+            job.jobResult = PostProcess.counts_qrng(jobRawResult)
+            job.jobStatus = JobStatus("DONE", "Job post processing completed")
         return job
+
+# Post-Processing functions
+class PostProcess:
+    def __init__(self):
+        pass
+        
+    def counts_qrng(jobCounts : dict) -> dict:
+        result = max(jobCounts, key=jobCounts.get)
+        occurrence = max(jobCounts.values())
+        allPossibleValues = {
+            k: int(k, 2) for k, v in jobCounts.items() if v == occurrence
+        }
+        details = {
+            "decimalValue": int(result, 2),
+            "numberOfOccurence": occurrence,
+            "allPossibleValues": allPossibleValues,
+        }
+        jobResult = {"data": result, "details": details}
+        return jobResult
+    
