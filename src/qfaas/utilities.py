@@ -1,3 +1,6 @@
+from .algorithms.shor import QFShor
+
+
 class JobStatus(object):
     def __init__(self, status="", details=""):
         self.status = status if status else "ERROR"
@@ -51,24 +54,56 @@ class Utils:
         if type(job) is JobResponse:
             if job.jobResult:
                 jobRawResult = job.jobResult
-        elif hasattr(job, 'jobRawResult'): # Type is FunctionInvocationSchema (post-process only)
+        elif hasattr(
+            job, "jobRawResult"
+        ):  # Type is FunctionInvocationSchema (post-process only)
             jobRawResult = job.jobRawResult
             job = JobResponse()
         else:
             job = JobResponse()
             return job
-        
+
         if jobRawResult:
             job.jobResult = PostProcess.counts_qrng(jobRawResult)
             job.jobStatus = JobStatus("DONE", "Job post processing completed")
         return job
 
+    # General Post processing selector (type="qrng", "shor")
+    def qfaas_post_process(job, ptype, requestData) -> JobResponse:
+        # If input type = JobResponse or have jobRawResult
+        jobRawResult = {}
+        if type(job) is JobResponse:
+            if job.jobResult:
+                jobRawResult = job.jobResult
+        elif hasattr(
+            job, "jobRawResult"
+        ):  # Type is FunctionInvocationSchema (post-process only)
+            jobRawResult = job.jobRawResult
+            job = JobResponse()
+        else:
+            job = JobResponse()
+            return job
+
+        if jobRawResult:
+            if ptype == "qrng":
+                job.jobResult = PostProcess.counts_qrng(jobRawResult)
+            elif ptype == "shor":
+                # Get input number
+                inputNumber = requestData.input
+                aShor = 2  # Default a = 2
+                job.jobResult = PostProcess.shor_postprocess(
+                    jobRawResult, inputNumber, aShor=2  # Default a = 2
+                )
+            job.jobStatus = JobStatus("DONE", "Job post processing completed")
+        return job
+
+
 # Post-Processing functions
 class PostProcess:
     def __init__(self):
         pass
-        
-    def counts_qrng(jobCounts : dict) -> dict:
+
+    def counts_qrng(jobCounts: dict) -> dict:
         result = max(jobCounts, key=jobCounts.get)
         occurrence = max(jobCounts.values())
         allPossibleValues = {
@@ -81,4 +116,19 @@ class PostProcess:
         }
         jobResult = {"data": result, "details": details}
         return jobResult
-    
+
+    def shor_postprocess(counts: dict, inputNumber: int, aShor: int = 2):
+        qfshor = QFShor()
+        for measurement in list(counts.keys()):
+            # Get the x_final value from the final state qubits
+            factors = qfshor.get_factors(inputNumber, aShor, measurement)
+
+            if factors:
+                # logger.info("Found factors %s from measurement %s.", factors, measurement)
+                qfshor.successful_counts = qfshor.successful_counts + 1
+                if factors not in qfshor.factors:
+                    qfshor.factors.append(factors)
+        result = qfshor.factors
+        details = {"all_counts": counts, "successful_counts": qfshor.successful_counts}
+        jobResult = {"data": result, "details": details}
+        return jobResult
