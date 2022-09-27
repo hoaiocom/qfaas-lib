@@ -8,7 +8,7 @@ class QFShor:
     def __init__(self):
         self._factor = []
         self._total_counts = 0
-        self._sucessful_counts = 0
+        self._successful_counts = 0
 
     @property
     def factors(self) -> List[List[int]]:
