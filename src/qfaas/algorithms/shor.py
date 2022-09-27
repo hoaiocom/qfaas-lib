@@ -6,7 +6,7 @@ class QFShor:
     """This class is inherited from Qiskit Shor Algorithm"""
 
     def __init__(self):
-        self._factor = []
+        self._factors = []
         self._total_counts = 0
         self._successful_counts = 0
 
